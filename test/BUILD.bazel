@@ -1,0 +1,13 @@
+py_binary(
+    name = "simple-client",
+    srcs = glob([
+        "simple-client.py",
+    ])
+)
+
+py_binary(
+    name = "server",
+    srcs = glob([
+        "server-test.py",
+    ])
+)
