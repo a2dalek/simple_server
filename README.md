@@ -1,0 +1,1 @@
+bazel run //test:simple-client -- localhost 9090 -n 1

@@ -1,0 +1,13 @@
+cc_library(
+    name = "seq_server",
+    srcs = glob([
+        "*.cpp",
+        "*.h",
+    ]),
+    deps = [
+        "//base_server:base_server",
+    ],
+    visibility = [
+        "//visibility:public"
+    ],
+)
