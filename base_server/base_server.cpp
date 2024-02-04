@@ -24,7 +24,7 @@ int base_server::ServeConnection(int new_sock_fd) {
         } else if (len == 0) {
             break;
         }
-        std::cout<<buf << std::endl;
+
         for (int i = 0; i < len; ++i) {
             switch (state) {
             case ProcessingState::WAIT_FOR_MSG:
