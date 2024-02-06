@@ -6,8 +6,9 @@ cc_library(
     ]),
     deps = [
         "//base_server:base_server",
+        "@component//rate_limiter:thread_pool",
     ],
     visibility = [
-        "//visibility:public"
+        "//visibility:public",
     ],
 )

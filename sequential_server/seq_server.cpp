@@ -2,7 +2,7 @@
 #include <sys/socket.h>
 #include <iostream>
 
-int seq_server::Run() {
+int SeqServer::Run() {
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("Serving on port %d\n", port);
 

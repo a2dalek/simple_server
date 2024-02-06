@@ -5,7 +5,7 @@
 
 #define N_BACKLOG 64
 
-int base_server::ServeConnection(int new_sock_fd) {
+int BaseServer::ServeConnection(int new_sock_fd) {
     ProcessingState state = ProcessingState::WAIT_FOR_MSG;
 
     if (send(new_sock_fd, "Hello", 5, 0) < 1) {
@@ -53,7 +53,7 @@ int base_server::ServeConnection(int new_sock_fd) {
     return 0;
 }
 
-int base_server::ListenInetSocket(int portnum) {
+int BaseServer::ListenInetSocket(int portnum) {
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0) {
     std::cout << "ERROR opening socket" << std::endl;
@@ -87,4 +87,4 @@ int base_server::ListenInetSocket(int portnum) {
   return sockfd;
 }
 
-int base_server::Run() {};
+int BaseServer::Run() {};

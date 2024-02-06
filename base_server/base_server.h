@@ -3,10 +3,10 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 
-class base_server {
+class BaseServer {
 
 public:
-    base_server(int port) : port(port) {};
+    BaseServer(int port) : port(port) {};
     virtual int Run();
 
 protected:

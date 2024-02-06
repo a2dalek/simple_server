@@ -4,9 +4,13 @@
 #include <iostream>
 #include <functional>
 
-int conc_server::Run() {
+ConcServer::ConcServer(int port, int num_threads) : BaseServer(port) {
+    thread_pool = std::make_unique<ThreadPool>(num_threads);
+}
+
+int ConcServer::Run() {
     setvbuf(stdout, NULL, _IONBF, 0);
-    printf("Serving on port %d\n", port);
+    std::cout << "Serving on port \n" << port;
 
     int socket_fd = ListenInetSocket(port);
     while (true)
@@ -16,11 +20,16 @@ int conc_server::Run() {
 
         int new_fd = accept(socket_fd, (struct sockaddr*)&peer_addr, &len_peer_addr);
         
-        std::thread t([this, new_fd]() {
-            this->ServeConnection(new_fd);            
-        });
-        
-        t.detach();
-    }
-    
+        if (thread_pool) {
+            thread_pool->submit_job([this, new_fd] {
+                this->ServeConnection(new_fd);
+            });
+        } else {
+            std::thread t([this, new_fd]() {
+                this->ServeConnection(new_fd);            
+            });
+            
+            t.detach();
+        }
+    }  
 }

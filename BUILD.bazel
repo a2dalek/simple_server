@@ -6,5 +6,8 @@ cc_binary(
     deps = [
         "//sequential_server:seq_server",
         "//concurrency_server:conc_server",
+    ],
+    copts = [
+        "-std=c++2b",
     ]
 )

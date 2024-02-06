@@ -1,10 +1,15 @@
 #pragma once
 
 #include "base_server/base_server.h"
+#include "rate_limiter/thread_pool.h"
 
-class conc_server : public base_server {
+class ConcServer : public BaseServer {
 
 public:
-    using base_server::base_server;
+    using BaseServer::BaseServer;
+    ConcServer(int port, int num_threads);
     int Run() override;
+
+private:
+    std::unique_ptr<ThreadPool> thread_pool;
 };

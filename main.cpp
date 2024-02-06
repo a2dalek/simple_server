@@ -4,7 +4,7 @@
 
 int main() {
     constexpr int PORT = 9090;
-    // std::unique_ptr<seq_server> server = std::make_unique<seq_server>(PORT);
-    std::unique_ptr<conc_server> server = std::make_unique<conc_server>(PORT);
+    // std::unique_ptr<SeqServer> server = std::make_unique<SeqServer>(PORT);
+    std::unique_ptr<ConcServer> server = std::make_unique<ConcServer>(PORT, 3);
     server->Run();
 }

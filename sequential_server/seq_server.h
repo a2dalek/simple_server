@@ -2,9 +2,9 @@
 
 #include "base_server/base_server.h"
 
-class seq_server: public base_server {
+class SeqServer: public BaseServer {
 
 public:
-    using base_server::base_server;
+    using BaseServer::BaseServer;
     int Run() override;
 };
