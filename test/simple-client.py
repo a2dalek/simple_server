@@ -40,7 +40,7 @@ def make_new_connection(name, host, port):
     """
     sockobj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sockobj.connect((host, port))
-    if sockobj.recv(5) != b'Hello':
+    if sockobj.recv(1) != b'H':
         logging.error('Something is wrong! Did not receive *')
     logging.info('{0} connected...'.format(name))
 

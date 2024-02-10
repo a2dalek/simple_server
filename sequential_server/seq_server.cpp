@@ -4,7 +4,7 @@
 
 int SeqServer::Run() {
     setvbuf(stdout, NULL, _IONBF, 0);
-    printf("Serving on port %d\n", port);
+    std::cout << "Serving on port " << port << std::endl;
 
     socket_fd = ListenInetSocket(port);
     
