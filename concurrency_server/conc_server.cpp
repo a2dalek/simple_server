@@ -122,143 +122,151 @@ int ConcServer::PeerSend(int sockfd) {
 }
 
 int ConcServer::Run() {
-    setvbuf(stdout, NULL, _IONBF, 0);
-    std::cout << "Serving on port " << port << std::endl;
+  setvbuf(stdout, NULL, _IONBF, 0);
+  std::cout << "Serving on port " << port << std::endl;
 
-    int socket_fd = ListenInetSocket(port);
-    if (MakeSocketNonBlocking(socket_fd) < 0) {
-        std::cout << "Error making socket non blocking" << std::endl;
-        return -1;
-    }
+  int socket_fd = ListenInetSocket(port);
+  if (MakeSocketNonBlocking(socket_fd) < 0) {
+      std::cout << "Error making socket non blocking" << std::endl;
+      return -1;
+  }
 
-    // Create epoll instance
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        std::cerr << "Error creating epoll instance" << std::endl;
-        close(socket_fd);
-        return -1;
-    }
+  // Create epoll instance
+  int epoll_fd = epoll_create1(0);
+  if (epoll_fd == -1) {
+      std::cerr << "Error creating epoll instance" << std::endl;
+      close(socket_fd);
+      return -1;
+  }
 
-    struct epoll_event sv_socket_event;
-    sv_socket_event.events = EPOLLIN;
-    sv_socket_event.data.fd = socket_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &sv_socket_event) < 0) {
-        std::cout << "Error adding server socket to epoll" << std::endl;
-        close(socket_fd);
-        close(epoll_fd);
-        return -1;
-    }
+  struct epoll_event sv_socket_event;
+  sv_socket_event.events = EPOLLIN;
+  sv_socket_event.data.fd = socket_fd;
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &sv_socket_event) < 0) {
+      std::cout << "Error adding server socket to epoll" << std::endl;
+      close(socket_fd);
+      close(epoll_fd);
+      return -1;
+  }
 
-    while (true)
-    {   
-        int num_events = epoll_wait(epoll_fd, events, MAXFDS, - 1);
-        if (num_events < 0) {
-            std::cout << "Error in epoll_wait" << std::endl;
-            close(socket_fd);
-            close(epoll_fd);
-            return -1;
-        }
+  while (true)
+  {   
+      int num_events = epoll_wait(epoll_fd, events, MAXFDS, - 1);
+      if (num_events < 0) {
+          std::cout << "Error in epoll_wait" << std::endl;
+          close(socket_fd);
+          close(epoll_fd);
+          return -1;
+      }
 
-        for (unsigned i = 0; i < num_events; ++i) {
+      for (unsigned i = 0; i < num_events; ++i) {
+        
+          if (events[i].data.fd == socket_fd) {
+            auto err_code = thread_pool->submit_job([this, socket_fd, epoll_fd] {
+              struct sockaddr_in peer_addr;
+              socklen_t len_peer_addr = sizeof(peer_addr);
 
-            if (events[i].data.fd == socket_fd) {
-                struct sockaddr_in peer_addr;
-                socklen_t len_peer_addr = sizeof(peer_addr);
+              int new_fd = accept(socket_fd, (struct sockaddr*)&peer_addr, &len_peer_addr);
+              if (new_fd < 0) {
+                  if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                      // std::cout << "Function `accept` returned EAGAIN or EWOULDBLOCK" << std::endl;
+                  } else {
+                      close(socket_fd);
+                      close(epoll_fd);
+                      return -1;
+                  }
+              } else {
+                  MakeSocketNonBlocking(new_fd);
+                  ConnectPeer(new_fd);
 
-                int new_fd = accept(socket_fd, (struct sockaddr*)&peer_addr, &len_peer_addr);
-                if (new_fd < 0) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        // std::cout << "Function `accept` returned EAGAIN or EWOULDBLOCK" << std::endl;
-                    } else {
-                        close(socket_fd);
-                        close(epoll_fd);
-                        return -1;
-                    }
-                } else {
-                    MakeSocketNonBlocking(new_fd);
-                    ConnectPeer(new_fd);
+                  struct epoll_event new_event;
+                  new_event.events |= EPOLLOUT;
+                  new_event.data.fd = new_fd;
+                  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_fd, &new_event) < 0) {
+                      std::cout << "Error adding server socket to epoll" << std::endl;
+                      return -1;
+                  }
+              }
 
-                    struct epoll_event new_event;
+              return 0;
+            }); 
+
+            if (err_code.get() < 0) return err_code.get();
+          } else {
+              if (events[i].events & EPOLLIN) {
+                int fd = events[i].data.fd;
+
+                auto err_code = thread_pool->submit_job([this, fd, epoll_fd] {
+                  PeerRecv(fd);
+
+                  struct epoll_event new_event;
+                  FdStatus status = global_state[fd].status;
+                  if (status == FdStatus::RECV) {
+                    new_event.events |= EPOLLIN;
+                  } else if (status == FdStatus::SEND) {
                     new_event.events |= EPOLLOUT;
-                    new_event.data.fd = new_fd;
-                    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_fd, &new_event) < 0) {
-                        std::cout << "Error adding server socket to epoll" << std::endl;
-                        return -1;
-                    }
-                }
-            } else {
-                if (events[i].events & EPOLLIN) {
-                    int fd = events[i].data.fd;
-                    PeerRecv(fd);
+                  }
+                  new_event.data.fd = fd;
 
-                    struct epoll_event new_event;
-                    FdStatus status = global_state[fd].status;
-                    if (status == FdStatus::RECV) {
-                      new_event.events |= EPOLLIN;
-                    } else if (status == FdStatus::SEND) {
-                      new_event.events |= EPOLLOUT;
-                    }
-                    new_event.data.fd = fd;
+                  if (new_event.events == 0) {
+                      std::cout << "Closing socket " << fd << std::endl;
 
-                    if (new_event.events == 0) {
-                        std::cout << "Closing socket " << fd << std::endl;
-
-                        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
-                          std::cout << "Error when deleting new_event" << std::endl;
-                          close(fd);
-                          return -1;
-                        }
-
-                        close(fd);
-                    } else if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &new_event) < 0) {
-                        std::cout << "Error when modifying new_event" << std::endl;
+                      if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+                        std::cout << "Error when deleting new_event" << std::endl;
                         close(fd);
                         return -1;
-                    }
+                      }
 
-                    // if (thread_pool) {
-                    //     thread_pool->submit_job([this, fd] {
-                    //         this->ServeConnection(fd);
-                    //     });
-                    // } else {
-                    //     std::thread t([this, fd]() {
-                    //         this->ServeConnection(fd);            
-                    //     });
-                        
-                    //     t.detach();
-                    // }
-                } else if (events[i].events & EPOLLOUT) {
-                    int fd = events[i].data.fd;
-                    PeerSend(fd);
+                      close(fd);
+                  } else if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &new_event) < 0) {
+                      std::cout << "Error when modifying new_event" << std::endl;
+                      close(fd);
+                      return -1;
+                  }
 
-                    struct epoll_event new_event;
-                    FdStatus status = global_state[fd].status;
-                    if (status == FdStatus::RECV) {
-                      new_event.events |= EPOLLIN;
-                    } else if (status == FdStatus::SEND) {
-                      new_event.events |= EPOLLOUT;
-                    }
-                    new_event.data.fd = fd;
+                  return 0;
+                });
 
-                    if (new_event.events == 0) {
-                        std::cout << "Closing socket " << fd << std::endl;
+                if (err_code.get() < 0) return err_code.get();
+              } else if (events[i].events & EPOLLOUT) {
+                int fd = events[i].data.fd;
 
-                        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
-                          std::cout << "Error when deleting new_event" << std::endl;
-                          close(fd);
-                          return -1;
-                        }
+                auto err_code = thread_pool->submit_job([this, fd, epoll_fd] {
+                  PeerSend(fd);
 
-                        close(fd);
-                    } else if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &new_event) < 0) {
-                        std::cout << "Error when modifying new_event";
+                  struct epoll_event new_event;
+                  FdStatus status = global_state[fd].status;
+                  if (status == FdStatus::RECV) {
+                    new_event.events |= EPOLLIN;
+                  } else if (status == FdStatus::SEND) {
+                    new_event.events |= EPOLLOUT;
+                  }
+                  new_event.data.fd = fd;
+
+                  if (new_event.events == 0) {
+                      std::cout << "Closing socket " << fd << std::endl;
+
+                      if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+                        std::cout << "Error when deleting new_event" << std::endl;
                         close(fd);
                         return -1;
-                    }
-                }
-            }
-        }
-    }  
+                      }
+
+                      close(fd);
+                  } else if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &new_event) < 0) {
+                      std::cout << "Error when modifying new_event";
+                      close(fd);
+                      return -1;
+                  }
+                });
+
+                if (err_code.get() < 0) return err_code.get();
+              }
+          }
+      }
+  } 
+
+  return 0;
 }
 
 int ConcServer::MakeSocketNonBlocking(int fd) {
